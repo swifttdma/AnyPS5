@@ -1,0 +1,9 @@
+# relinker
+
+## change [matcher](../../../core/relinker/codegen/src/x86/Amd64OnlyInstructionMatcher.cpp)) applies the BMI1
+
+- `--to-avx` ([matcher](../../../core/relinker/codegen/src/x86/Amd64OnlyInstructionMatcher.cpp)) applies the BMI1, BMI2, CLWB and RDPID lowerings of `--to-rosetta` and adds TZCNT, LZCNT, MOVBE and FMA3, for hosts with AVX but without AVX2, such as the Sandy Bridge and Ivy Bridge CPUs of 2011 and 2012 Macs. AVX2, F16C, PDEP, PEXT, RDRAND and RDSEED are not lowered, so a title that reaches one of them still raises an illegal instruction; Sandy Bridge has neither RDRAND nor RDSEED, so the `--to-rosetta` RDSEED-to-RDRAND rewrite would not help there. It requires `--macos`: the Linux and Windows runtimes stop at start-up when the host lacks BMI1, BMI2, LZCNT, MOVBE or AVX2 and do not yet read which of them a conversion lowered.
+
+## add Functional
+
+- [FMA3 lowering](../../../core/relinker/codegen/src/x86/FmaLowering.cpp) under `--to-avx` does not update MXCSR exception status flags or raise #XM on unmasked exceptions, runs substantially slower than hardware FMA3, and has unverified fault delivery inside its spill sequence; stack-relative displacements that exceed signed disp32 after reserving the spill frame throw. It lowers all 60 FMA3 instructions (128-bit, 256-bit and scalar single/double precision, register and memory operands) in an out-of-line exact single-rounding integer loop (128-bit for f32, 192-bit for f64) below the red zone, saving RFLAGS, 15 GPRs and one scratch YMM for memory operands, and honoring MXCSR rounding modes, DAZ and FTZ. The execution test checks all 60 instructions, rounding/DAZ/FTZ/NaN/cancellation edge cases, register aliasing, and RIP/SIB/RSP/page-end memory operands against both the SDM model and hardware FMA3 when supported.
